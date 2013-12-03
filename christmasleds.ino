@@ -31,6 +31,7 @@ void setup()
 	csf.red.an[0] = 0;
 	csf.red.bn = (float *) calloc(1, sizeof(float));
 	csf.red.bn[0] = 1;
+	csf.red.period = 6.28;
 
 	csf.green.a0 = 128;
 	csf.green.N = 1;
@@ -38,6 +39,7 @@ void setup()
 	csf.green.an[0] = 0;
 	csf.green.bn = (float *) calloc(1, sizeof(float));
 	csf.green.bn[0] = 1;
+	csf.green.period = 6.28;
 
 	csf.blue.a0 = 128;
 	csf.blue.N = 1;
@@ -45,9 +47,9 @@ void setup()
 	csf.blue.an[0] = 0;
 	csf.blue.bn = (float *) calloc(1, sizeof(float));
 	csf.blue.bn[0] = 1;
+	csf.blue.period = 6.28;
 	
 	csf.waittime = 500;
-	csf.period = 6.28;
 	csf.xstep = 0.01;
 	csf.x = 0;
 
@@ -69,10 +71,6 @@ void loop()
 	} else { /* there is no data available, update instead */
 		updateFourier();
 		csf.x += csf.xstep;
-
-		if (csf.x > csf.period) {
-			csf.x = 0;
-		}
 	}
 }
 
@@ -103,11 +101,11 @@ void parseFourier(EthernetClient client)
 	/* read waittime, step and period */
 	csf.waittime = client.parseInt();
 	csf.xstep = client.parseFloat();
-	csf.period = client.parseFloat();
 	
 	/* read red */
 	csf.red.a0 = client.parseFloat();
 	csf.red.N = client.parseInt();
+	csf.red.period = client.parseFloat();
 	free(csf.red.an);
 	free(csf.red.bn);
 	csf.red.an = (float *) calloc(csf.red.N, sizeof(float));
@@ -118,6 +116,7 @@ void parseFourier(EthernetClient client)
 	/* read green */
 	csf.green.a0 = client.parseFloat();
 	csf.green.N = client.parseInt();
+	csf.green.period = client.parseFloat();
 	free(csf.green.an);
 	free(csf.green.bn);
 	csf.green.an = (float *) calloc(csf.green.N, sizeof(float));
@@ -128,6 +127,7 @@ void parseFourier(EthernetClient client)
 	/* read blue */
 	csf.blue.a0 = client.parseFloat();
 	csf.blue.N = client.parseInt();
+	csf.blue.period = client.parseFloat();
 	free(csf.blue.an);
 	free(csf.blue.bn);
 	csf.blue.an = (float *) calloc(csf.blue.N, sizeof(float));
@@ -137,7 +137,7 @@ void parseFourier(EthernetClient client)
 
 	/* we have read what we wanted, discard the rest data (if any) */
 	client.flush();
-
+	
 	DEBUG(
 		long diff = millis() - time;
 		Serial.println("Fourier parsed: ");
@@ -171,7 +171,7 @@ void selfTest()
 int fourier(struct fourierSeries *col)
 {
 	float val = 0;
-	float pre = PI2*csf.x/csf.period;
+	float pre = PI2*csf.x/col->period;
 
 	DEBUG(unsigned long time = micros(););
 	

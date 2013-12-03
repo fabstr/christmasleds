@@ -1,100 +1,131 @@
+<html>
+<head>
+<title>Skickar data</title>
+</head>
+<body>
 <?php
-/* LNCP: LED Network Control Protocol:
- * Byte 0 is protocol version
- * Byte 1 is delaytime
- * Byte 2-6 are coefficients for r(t) (see below)
- * Byte 7-11, are coeccicient for g(t) (see below)
- * Byte 12-16 are coeccicient for b(t) (see below)
- * r(t), g(t) and b(t) are functions on the form
- *   f(t)=Asin((B/C)t+D)+E
- * where A,B,C,D,E are real constants and 0 <= A,B,C,D,E <= 255
- * 
- * LNCP operates on port 8467.
- */
-//$f = fopen("access.log", "a");
-//if (!$f) die("Could not open log file.");
 $port = 8467;
 $host = "arduino.tallr.se";
-$w = $_GET["wait"];
-$ba = $_GET["RA"]; $bb = $_GET["RB"]; $bc = $_GET["RC"]; $bd = $_GET["RD"]; $be = $_GET["RE"];
-$ga = $_GET["GA"]; $gb = $_GET["GB"]; $gc = $_GET["GC"]; $gd = $_GET["GD"]; $ge = $_GET["GE"];
-$ra = $_GET["BA"]; $rb = $_GET["BB"]; $rc = $_GET["BC"]; $rd = $_GET["BD"]; $re = $_GET["BE"];
-$r = colFunc($ra, $rb, $rc, $rd, $re);
-$g = colFunc($ga, $gb, $gc, $gd, $ge);
-$b = colFunc($ba, $bb, $bc, $bd, $be);
-$version = 1;
-$waittime = ($w < 0 || $w > 255) ? 10 : $w;
-$packet = createPacket($version, $waittime, $r, $g, $b);
-send($packet, $host, $port);
 
-/* create log file and header */
-$page="index.php?wait=$waittime&RA=$ra&RB=$rb&RC=$rc&RD=$rd&RE=$re&GA=$ga&GB=$gb&GC=$gc&GD=$gd&GE=$ge&BA=$ba&BB=$bb&BC=$bc&BD=$bd&BE=$be";
-$data = substr($page, 15);
-$data = str_replace(array("RA", "RB", "RC", "RD", "RE", "GA", "GB", "GC", "GD", "GE", "BA", "BB", "BC", "BD", "BE", "wait", "&"), "", $data);
-$time = date("ymd-His", time());
-$rip = $_SERVER['REMOTE_ADDR'];
+if (!isset($_GET["premade"])) {
+	$anRed = array($_POST["ra1"], $_POST["ra2"], $_POST["ra3"], $_POST["ra4"],
+		$_POST["ra5"], $_POST["ra6"], $_POST["ra7"], $_POST["ra8"],
+		$_POST["ra9"], $_POST["ra10"]);
+	$bnRed = array($_POST["rb1"], $_POST["rb2"], $_POST["rb3"], $_POST["rb4"],
+		$_POST["rb5"], $_POST["rb6"], $_POST["rb7"], $_POST["rb8"],
+		$_POST["rb9"], $_POST["rb10"]);
+	$anGreen = array($_POST["ga1"], $_POST["ga2"], $_POST["ga3"], $_POST["ga4"],
+		$_POST["ga5"], $_POST["ga6"], $_POST["ga7"], $_POST["ga8"],
+		$_POST["ga9"], $_POST["ga10"]);
+	$bnGreen = array($_POST["gb1"], $_POST["gb2"], $_POST["gb3"], $_POST["gb4"],
+		$_POST["gb5"], $_POST["gb6"], $_POST["gb7"], $_POST["gb8"],
+		$_POST["gb9"], $_POST["gb10"]);
+	$anBlue = array($_POST["ba1"], $_POST["ba2"], $_POST["ba3"], $_POST["ba4"],
+		$_POST["ba5"], $_POST["ba6"], $_POST["ba7"], $_POST["ba8"],
+		$_POST["ba9"], $_POST["ba10"]);
+	$bnBlue = array($_POST["bb1"], $_POST["bb2"], $_POST["bb3"], $_POST["bb4"],
+		$_POST["bb5"], $_POST["bb6"], $_POST["bb7"], $_POST["bb8"],
+		$_POST["bb9"], $_POST["bb10"]);
 
-/* log */
-//fwrite($f, "$time $rip $data\n");
-//fclose($f);
+	$waittime = $_POST["waittime"];
+	$xstep = $_POST["xstep"];
+	$period = $_POST["period"];
 
-/* send header */
-header("Location: $page");
+	$a0R = $_POST["ra0"];
+	$a0G = $_POST["ga0"];
+	$a0B = $_POST["ba0"];
+	$pR = $_POST["rperiod"];
+	$pG = $_POST["gperiod"];
+	$pB = $_POST["bperiod"];
+} else {
+	$anRed = array(); 
+	$bnRed = array();
+	$anGreen = array(); 
+	$bnGreen = array();
+	$anBlue = array(); 
+	$bnBlue = array();
+	$waittime = 10;
+	$xstep = 0.1;
+	$pR = $pG = $pB = 6.28;
+	$a0R = $a0G = $a0B = 0;
 
-/**
- * Return a (unsigned char) array of $a, $b, $c, $d and $e.
- * This array is an abstract description of a function on
- * the form f(x):=a*sin((b/c)x+d)+e.
- * Please note that 0 <= a,b,d,e <= 255 and that c != 0.
- * @param $a The a-coeccicient
- * @param $b The b-coeccicient
- * @param $c The c-coeccicient
- * @param $d The d-coeccicient
- * @param $e The e-coeccicient
- * @return The array (or is it a string?)
- */
-function colFunc($a, $b, $c, $d, $e) 
-{
-	if ($a < 0) $a = 0; else if ($a > 255) $a = 255;
-	if ($b < 0) $b = 0; else if ($b > 255) $b = 255;
-	if ($c < 1) $c = 0; else if ($c > 255) $c = 255; /* c > 0 */
-	if ($d < 0) $d = 0; else if ($d > 255) $d = 255;
-	if ($e < 0) $e = 0; else if ($e > 255) $e = 255;
-	return pack("CCCCC", $a, $b, $c, $d, $e);
-}
-
-/**
- * Create a packet on the form
- *   version, waittime, r, b, g
- * where version is the (protocol) version number,
- * waittime is the deyal between each iteration and
- * r, g, b are strings created using colFunc().
- * @param $version The version number
- * @param $r The r string
- * @param $g The g string
- * @param $b The b string
- * @return The packet
- */
-function createPacket($version, $waittime, $r, $g, $b)
-{
-	return pack("CC", $version, $waittime) . $r . $g . $b;
-}
-
-/**
- * Send data using TCP to a server at $IP:$PORT.
- * @param $data The data to send.
- */
-function send($data, $host, $port) 
-{
-	$fp = stream_socket_client("tcp://$host:$port", $errno, $errstr, 10);
-	if (!$fp) {
-		$f = fopen("access.log", "a");
-		if (!$f) die("Could not open log file to write error.");
-		fwrite($f, "Error: ($errno) $errstr\n");
-		fclose($f);
-		die("Error during send.");
+	$var = $_GET["premade"];
+	echo $var;
+	switch ($_GET["premade"]) {
+	case "red":
+		$a0R = 255;
+		break;
+	case "green": 
+		$a0G = 255; 
+		break;
+	case "blue":
+		$a0B = 255;
+		break;
+	case "pulsered":
+		$anRed = array(1); 
+		$bnRed = array(0);
+		$a0R = 128; 
+		break;
+	case "pulsegreen":
+		$anGreen = array(1); 
+		$bnGreen = array(0);
+		$a0G = 128; 
+		break;
+	case "pulseblue":
+		$anBlue = array(1); 
+		$bnBlue = array(0);
+		$a0B = 128;
+		break;
+	case "pulseyellow":
+		$anRed = array(1); 
+		$bnRed = array(0);
+		$anGreen = array(1); 
+		$bnGreen = array(0);
+		$a0R = $a0G = 128; 
+		break;
+	case "off":
+		break;
 	}
-	fwrite($fp, $data);
-	fclose($fp);
 }
+
+//$an = array(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+//$bn = array(1.2732, 0.0, 0.4244, 0.0, 0.2546, 0.0, 0.1819, 0.0, 0.1415, 0.0, 0.1157, 0.0, 0.0979, 0.0, 0.0849, 0.0, 0.0749, 0.0, 0.067, 0.0, 0.0606, 0.0, 0.0554, 0.0, 0.0509, 0.0, 0.0472, 0.0, 0.0439, 0.0, 0.0411, 0.0, 0.0386);
+//$waittime = 100;
+//$xstep = 0.005;
+//$period = 6.28;
+
+function arrayToString($arr) {
+	$str = "";
+	foreach ($arr as $a) {
+		$str .= sprintf("%2.2f ", $a);
+	}
+
+	return $str;
+}
+
+
+$nR = sizeof($anRed);
+$nG = sizeof($anGreen);
+$nB = sizeof($anBlue);
+
+$red = sprintf("%d %d %1.2f %s%s", $a0R, $nR, $pR, arrayToString($anRed), arrayToString($bnRed));
+$green = sprintf("%d %d %1.2f %s%s", $a0G, $nG, $pG, arrayToString($anGreen), arrayToString($bnGreen));
+$blue = sprintf("%d %d %1.2f %s%s", $a0B, $nB, $pB, arrayToString($anBlue), arrayToString($bnBlue));
+
+$data = trim(sprintf("2 %d %1.2f\n%s\n%s\n%s", $waittime, $xstep, $red, $green, $blue));
+
+$fp = stream_socket_client("tcp://$host:$port", $errno, $errstr, 10);
+if (!$fp) {
+	die("Error during send.");
+}
+echo "Packing data...<br>";
+$data = pack("a*x", $data);
+echo "Sending data: <pre>\n$data</pre><br>";
+fwrite($fp, $data);
+echo "Closing connection...<br>";
+fclose($fp);
+echo "Done!";
 ?>
+<p><a href="index.php">Tillbaka</a></p>
+</body>
+</html>
